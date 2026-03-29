@@ -143,6 +143,9 @@ def md_to_html(md):
                 in_watchlist = False
             if in_section:
                 result.append('</div><!-- /.section-block -->')
+            # Add divider between sections (not before the first one)
+            if in_section or any('<div class="section-block">' in r for r in result):
+                result.append('<hr class="section-divider">')
             result.append('<div class="section-block">')
             in_section = True
             continue
@@ -161,6 +164,10 @@ def md_to_html(md):
             if in_wim:
                 result.append('</div><!-- /.callout-analysis -->')
                 in_wim = False
+            if in_section:
+                result.append('</div><!-- /.section-block -->')
+                in_section = False
+            result.append('<hr class="section-divider">')
             result.append(f'<div class="callout callout-bottom-line">')
             result.append(f'<div class="callout-label">{ICON_BOTTOM}Bottom Line</div>')
             in_bottom = True
@@ -177,6 +184,7 @@ def md_to_html(md):
             if in_section:
                 result.append('</div><!-- /.section-block -->')
                 in_section = False
+            result.append('<hr class="section-divider">')
             result.append(f'<div id="watchlist" class="callout callout-warning">')
             result.append(f'<div class="callout-label">{ICON_WARNING}Watchlist &amp; Key Dates</div>')
             in_watchlist = True
