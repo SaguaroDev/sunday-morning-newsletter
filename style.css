@@ -458,28 +458,16 @@ blockquote cite {
 }
 
 .section-num {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: var(--color-accent);
-  color: #fff;
   font-family: var(--font-body);
   font-size: 14px;
   font-weight: 700;
+  color: var(--color-accent);
   flex-shrink: 0;
-  margin-top: 1px;
+  margin-top: 2px;
 }
 
-[data-theme="dark"] .section-num {
-  background: #1a5a80;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme]) .section-num {
-    background: #1a5a80;
-  }
+.section-num::after {
+  content: '.';
 }
 
 .sub-label {
@@ -504,6 +492,7 @@ blockquote cite {
 
 .briefing-section ul {
   padding-left: 20px;
+  margin-top: 12px;
   margin-bottom: 16px;
 }
 
