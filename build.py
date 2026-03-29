@@ -291,11 +291,10 @@ def build_page(esl_data, label, idx, total):
 <div class="gemini-bar">
 <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="var(--color-accent)" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg>
 <span>Have follow-up questions about this briefing?</span>
-<a href="https://gemini.google.com/" target="_blank" rel="noopener noreferrer">Open Gemini ↗</a>
+<a href="https://gemini.google.com/" target="_blank" rel="noopener noreferrer">Ask Gemini ↗</a>
 </div>
 <div class="footer-links"><a href="{url}" target="_blank" rel="noopener">View in Notion</a></div>
-<p class="ai-disclosure">AI-assisted research. Data sourced from published carrier filings, industry reports, and regulatory documents. Not independently verified by a credentialed actuary.</p>
-<p class="footer-sig">— Computer</p>
+<p class="ai-disclosure">AI-assisted research. Data sourced from published carrier filings, industry reports, and regulatory documents. Not independently verified by a credentialed actuary. For questions or corrections, contact Nick Kinney.</p>
 </div></footer>
 
 <script>
