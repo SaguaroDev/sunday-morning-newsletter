@@ -39,7 +39,37 @@ def extract_content(text):
 def md_to_html(md):
     if not md: return ''
     html = md.replace('\\$', '$')
-    # Tables
+
+    # --- Pre-pass: detect and wrap Key Insight block ---
+    # Key Insight is a paragraph starting with bold "Key Insight" or a line containing "Key Insight:"
+    # It appears before the numbered sections. Capture everything before "## 1)" as the intro block.
+    insight_match = re.match(
+        r'((?:.*?\n)*?(?:.*?[Kk]ey [Ii]nsight.*?\n)(?:.*?\n)*?)(?=## \d+\))',
+        html, re.S
+    )
+    if insight_match:
+        intro_raw = insight_match.group(1)
+        rest = html[len(intro_raw):]
+        # Split intro into Key Insight paragraph(s) and Key Quotes (blockquote lines with em-dash)
+        insight_lines = []
+        quote_lines = []
+        for ln in intro_raw.strip().split('\n'):
+            s = ln.strip()
+            # Lines with attribution em-dash (— or --) go to quotes
+            if re.search(r'[\u2014\u2013]\s*\w', s) and (s.startswith('>') or s.startswith('"') or s.startswith('\u201c')):
+                quote_lines.append(s)
+            else:
+                insight_lines.append(ln)
+        insight_body = '\n'.join(insight_lines).strip()
+        quote_body = '\n'.join(quote_lines).strip()
+        rebuilt = ''
+        if insight_body:
+            rebuilt += f'<INSIGHT_BLOCK>\n{insight_body}\n</INSIGHT_BLOCK>\n'
+        if quote_body:
+            rebuilt += f'<QUOTES_BLOCK>\n{quote_body}\n</QUOTES_BLOCK>\n'
+        html = rebuilt + rest
+
+    # --- Tables ---
     def tbl(match):
         rows = re.findall(r'<tr>([\s\S]*?)</tr>', match.group(1))
         o = '<div class="data-table-wrap"><table class="data-table">'
@@ -51,18 +81,109 @@ def md_to_html(md):
                 o += '<tr>' + ''.join(f'<td class="carrier-name">{c}</td>' if j==0 else f'<td>{c}</td>' for j,c in enumerate(cells)) + '</tr>'
         return o + '</tbody></table></div>'
     html = re.sub(r'<table header-row="true">([\s\S]*?)</table>', tbl, html)
-    # Headers
-    html = re.sub(r'^## (\d+)\) (.+)$', r'<h3 class="section-heading"><span class="section-num">\1</span>\2</h3>', html, flags=re.M)
+
+    # --- Headers ---
+    html = re.sub(r'^## (\d+)\) (.+)$', r'<SECTION_START>\n<h3 class="section-heading"><span class="section-num">\1</span>\2</h3>', html, flags=re.M)
+    # Watchlist / Key dates section gets a callout wrapper marker
+    html = re.sub(
+        r'<h3 class="section-heading">(Key dates[^<]*|.*?[Ww]atchlist.*?)</h3>',
+        r'<WATCHLIST_START>\n<h3 class="section-heading">\1</h3>',
+        html
+    )
     html = re.sub(r'^## (.+)$', r'<h3 class="section-heading">\1</h3>', html, flags=re.M)
     html = re.sub(r'^\*\*What [Cc]hanged[^*]*\*\*', '<h4 class="sub-label">What Changed</h4>', html, flags=re.M)
-    html = re.sub(r'^\*\*Why [Ii]t [Mm]atters[^*]*\*\*', '<h4 class="sub-label">Why It Matters</h4>', html, flags=re.M)
+    # Why It Matters: mark following content with analysis-card wrapper
+    html = re.sub(r'^\*\*Why [Ii]t [Mm]atters[^*]*\*\*', '<WIM_START>', html, flags=re.M)
     html = re.sub(r'^\*\*([^*]+)\*\*$', r'<h4 class="sub-label">\1</h4>', html, flags=re.M)
     html = re.sub(r'\*\*([^*]+)\*\*', r'<strong>\1</strong>', html)
     html = re.sub(r'\*([^*]+)\*', r'<em>\1</em>', html)
     html = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'<a href="\2" target="_blank" rel="noopener">\1</a>', html)
+
+    # --- Source citations: (SourceName) at end of sentence or inline ---
+    html = re.sub(
+        r'\(([A-Z][A-Za-z0-9 &./]+?)\)(?=[.,;\s]|$)',
+        lambda m: f'<span class="source-cite">({m.group(1)})</span>',
+        html
+    )
+
+    # --- Blockquote lines starting with > ---
+    def make_blockquote(m):
+        text = m.group(1).strip()
+        # Split attribution if em-dash present
+        parts = re.split(r'\s*[\u2014\u2013]\s*', text, maxsplit=1)
+        if len(parts) == 2:
+            return f'<blockquote><p>{parts[0].strip()}</p><cite>\u2014 {parts[1].strip()}</cite></blockquote>'
+        return f'<blockquote><p>{text}</p></blockquote>'
+    html = re.sub(r'^>\s*(.+)$', make_blockquote, html, flags=re.M)
+
+    # --- Line-by-line processing ---
     lines, result, in_list = html.split('\n'), [], False
+    in_wim = False
+    in_watchlist = False
+    in_section = False
+
     for line in lines:
         s = line.strip()
+
+        # Section dividers
+        if s == '<SECTION_START>':
+            if in_wim:
+                result.append('</div><!-- /.analysis-card -->')
+                in_wim = False
+            if in_watchlist:
+                result.append('</div><!-- /.callout -->')
+                in_watchlist = False
+            if in_section:
+                result.append('</div><!-- /.section-block -->')
+            result.append('<div class="section-block">')
+            in_section = True
+            continue
+
+        # Why It Matters card start
+        if s == '<WIM_START>':
+            if in_wim:
+                result.append('</div><!-- /.analysis-card -->')
+            result.append('<h4 class="sub-label">Why It Matters</h4>')
+            result.append('<div class="analysis-card">')
+            in_wim = True
+            continue
+
+        # Watchlist callout start
+        if s == '<WATCHLIST_START>':
+            if in_wim:
+                result.append('</div><!-- /.analysis-card -->')
+                in_wim = False
+            if in_section:
+                result.append('</div><!-- /.section-block -->')
+                in_section = False
+            result.append('<div id="watchlist" class="callout callout-warning">')
+            result.append('<div class="callout-label">Watchlist &amp; Key Dates</div>')
+            in_watchlist = True
+            continue
+
+        # Insight block
+        if s == '<INSIGHT_BLOCK>':
+            result.append('<div class="callout callout-insight">')
+            result.append('<div class="callout-label">Key Insight</div>')
+            continue
+        if s == '</INSIGHT_BLOCK>':
+            result.append('</div><!-- /.callout-insight -->')
+            continue
+
+        # Quotes block
+        if s == '<QUOTES_BLOCK>':
+            result.append('<div class="callout callout-quotes">')
+            result.append('<div class="callout-label">Key Quotes</div>')
+            continue
+        if s == '</QUOTES_BLOCK>':
+            result.append('</div><!-- /.callout-quotes -->')
+            continue
+
+        # Close analysis card when a new h3/h4 section-heading or another sub-label appears (not Why It Matters)
+        if in_wim and s.startswith('<h3') or (in_wim and s.startswith('<h4') and 'Why It Matters' not in s and '<WIM_START>' not in s):
+            result.append('</div><!-- /.analysis-card -->')
+            in_wim = False
+
         if s.startswith('- '):
             if not in_list: result.append('<ul>'); in_list = True
             result.append(f'<li>{s[2:]}</li>')
@@ -70,7 +191,11 @@ def md_to_html(md):
             if in_list: result.append('</ul>'); in_list = False
             if s and not s.startswith('<'): result.append(f'<p>{s}</p>')
             elif s: result.append(s)
+
     if in_list: result.append('</ul>')
+    if in_wim: result.append('</div><!-- /.analysis-card -->')
+    if in_watchlist: result.append('</div><!-- /.callout -->')
+    if in_section: result.append('</div><!-- /.section-block -->')
     return '\n'.join(result)
 
 def build_page(esl_data, label, idx, total):
