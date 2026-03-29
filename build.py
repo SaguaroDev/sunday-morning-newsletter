@@ -16,6 +16,13 @@ ISSUES_DIR = SITE_DIR / "issues"
 MANIFEST = ISSUES_DIR / "manifest.json"
 ISSUES_DIR.mkdir(exist_ok=True)
 
+# ── SVG icons for callout labels ──
+ICON_INSIGHT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>'
+ICON_ANALYSIS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>'
+ICON_WARNING = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'
+ICON_BOTTOM = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
+ICON_QUOTES = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V21z"/><path d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h.75c0 2.25.25 4-2.75 5v3z"/></svg>'
+
 async def call_tool(source_id, tool_name, arguments):
     proc = await asyncio.create_subprocess_exec(
         "external-tool", "call", json.dumps({"source_id": source_id, "tool_name": tool_name, "arguments": arguments}),
@@ -40,9 +47,7 @@ def md_to_html(md):
     if not md: return ''
     html = md.replace('\\$', '$')
 
-    # --- Pre-pass: detect and wrap Key Insight block ---
-    # Key Insight is a paragraph starting with bold "Key Insight" or a line containing "Key Insight:"
-    # It appears before the numbered sections. Capture everything before "## 1)" as the intro block.
+    # ── Pre-pass: detect Key Insight block before numbered sections ──
     insight_match = re.match(
         r'((?:.*?\n)*?(?:.*?[Kk]ey [Ii]nsight.*?\n)(?:.*?\n)*?)(?=## \d+\))',
         html, re.S
@@ -50,12 +55,10 @@ def md_to_html(md):
     if insight_match:
         intro_raw = insight_match.group(1)
         rest = html[len(intro_raw):]
-        # Split intro into Key Insight paragraph(s) and Key Quotes (blockquote lines with em-dash)
         insight_lines = []
         quote_lines = []
         for ln in intro_raw.strip().split('\n'):
             s = ln.strip()
-            # Lines with attribution em-dash (— or --) go to quotes
             if re.search(r'[\u2014\u2013]\s*\w', s) and (s.startswith('>') or s.startswith('"') or s.startswith('\u201c')):
                 quote_lines.append(s)
             else:
@@ -69,7 +72,7 @@ def md_to_html(md):
             rebuilt += f'<QUOTES_BLOCK>\n{quote_body}\n</QUOTES_BLOCK>\n'
         html = rebuilt + rest
 
-    # --- Tables ---
+    # ── Tables ──
     def tbl(match):
         rows = re.findall(r'<tr>([\s\S]*?)</tr>', match.group(1))
         o = '<div class="data-table-wrap"><table class="data-table">'
@@ -82,9 +85,9 @@ def md_to_html(md):
         return o + '</tbody></table></div>'
     html = re.sub(r'<table header-row="true">([\s\S]*?)</table>', tbl, html)
 
-    # --- Headers ---
+    # ── Headers ──
     html = re.sub(r'^## (\d+)\) (.+)$', r'<SECTION_START>\n<h3 class="section-heading"><span class="section-num">\1</span>\2</h3>', html, flags=re.M)
-    # Watchlist / Key dates section gets a callout wrapper marker
+    # Watchlist section
     html = re.sub(
         r'<h3 class="section-heading">(Key dates[^<]*|.*?[Ww]atchlist.*?)</h3>',
         r'<WATCHLIST_START>\n<h3 class="section-heading">\1</h3>',
@@ -92,35 +95,37 @@ def md_to_html(md):
     )
     html = re.sub(r'^## (.+)$', r'<h3 class="section-heading">\1</h3>', html, flags=re.M)
     html = re.sub(r'^\*\*What [Cc]hanged[^*]*\*\*', '<h4 class="sub-label">What Changed</h4>', html, flags=re.M)
-    # Why It Matters: mark following content with analysis-card wrapper
+    # Why It Matters → callout-analysis box
     html = re.sub(r'^\*\*Why [Ii]t [Mm]atters[^*]*\*\*', '<WIM_START>', html, flags=re.M)
+    # Bottom Line → callout-bottom-line box
+    html = re.sub(r'^\*\*Bottom [Ll]ine[^*]*\*\*', '<BOTTOM_LINE_START>', html, flags=re.M)
     html = re.sub(r'^\*\*([^*]+)\*\*$', r'<h4 class="sub-label">\1</h4>', html, flags=re.M)
     html = re.sub(r'\*\*([^*]+)\*\*', r'<strong>\1</strong>', html)
     html = re.sub(r'\*([^*]+)\*', r'<em>\1</em>', html)
     html = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'<a href="\2" target="_blank" rel="noopener">\1</a>', html)
 
-    # --- Source citations: (SourceName) at end of sentence or inline ---
+    # ── Source citations ──
     html = re.sub(
         r'\(([A-Z][A-Za-z0-9 &./]+?)\)(?=[.,;\s]|$)',
         lambda m: f'<span class="source-cite">({m.group(1)})</span>',
         html
     )
 
-    # --- Blockquote lines starting with > ---
+    # ── Blockquotes ──
     def make_blockquote(m):
         text = m.group(1).strip()
-        # Split attribution if em-dash present
         parts = re.split(r'\s*[\u2014\u2013]\s*', text, maxsplit=1)
         if len(parts) == 2:
             return f'<blockquote><p>{parts[0].strip()}</p><cite>\u2014 {parts[1].strip()}</cite></blockquote>'
         return f'<blockquote><p>{text}</p></blockquote>'
     html = re.sub(r'^>\s*(.+)$', make_blockquote, html, flags=re.M)
 
-    # --- Line-by-line processing ---
+    # ── Line-by-line processing ──
     lines, result, in_list = html.split('\n'), [], False
     in_wim = False
     in_watchlist = False
     in_section = False
+    in_bottom = False
 
     for line in lines:
         s = line.strip()
@@ -128,10 +133,13 @@ def md_to_html(md):
         # Section dividers
         if s == '<SECTION_START>':
             if in_wim:
-                result.append('</div><!-- /.analysis-card -->')
+                result.append('</div><!-- /.callout-analysis -->')
                 in_wim = False
+            if in_bottom:
+                result.append('</div><!-- /.callout-bottom-line -->')
+                in_bottom = False
             if in_watchlist:
-                result.append('</div><!-- /.callout -->')
+                result.append('</div><!-- /.callout-warning -->')
                 in_watchlist = False
             if in_section:
                 result.append('</div><!-- /.section-block -->')
@@ -139,32 +147,45 @@ def md_to_html(md):
             in_section = True
             continue
 
-        # Why It Matters card start
+        # Why It Matters → callout-analysis
         if s == '<WIM_START>':
             if in_wim:
-                result.append('</div><!-- /.analysis-card -->')
-            result.append('<h4 class="sub-label">Why It Matters</h4>')
-            result.append('<div class="analysis-card">')
+                result.append('</div><!-- /.callout-analysis -->')
+            result.append(f'<div class="callout callout-analysis">')
+            result.append(f'<div class="callout-label">{ICON_ANALYSIS}Why It Matters</div>')
             in_wim = True
+            continue
+
+        # Bottom Line → callout-bottom-line
+        if s == '<BOTTOM_LINE_START>':
+            if in_wim:
+                result.append('</div><!-- /.callout-analysis -->')
+                in_wim = False
+            result.append(f'<div class="callout callout-bottom-line">')
+            result.append(f'<div class="callout-label">{ICON_BOTTOM}Bottom Line</div>')
+            in_bottom = True
             continue
 
         # Watchlist callout start
         if s == '<WATCHLIST_START>':
             if in_wim:
-                result.append('</div><!-- /.analysis-card -->')
+                result.append('</div><!-- /.callout-analysis -->')
                 in_wim = False
+            if in_bottom:
+                result.append('</div><!-- /.callout-bottom-line -->')
+                in_bottom = False
             if in_section:
                 result.append('</div><!-- /.section-block -->')
                 in_section = False
-            result.append('<div id="watchlist" class="callout callout-warning">')
-            result.append('<div class="callout-label">Watchlist &amp; Key Dates</div>')
+            result.append(f'<div id="watchlist" class="callout callout-warning">')
+            result.append(f'<div class="callout-label">{ICON_WARNING}Watchlist &amp; Key Dates</div>')
             in_watchlist = True
             continue
 
         # Insight block
         if s == '<INSIGHT_BLOCK>':
-            result.append('<div class="callout callout-insight">')
-            result.append('<div class="callout-label">Key Insight</div>')
+            result.append(f'<div class="callout callout-insight">')
+            result.append(f'<div class="callout-label">{ICON_INSIGHT}Key Insight</div>')
             continue
         if s == '</INSIGHT_BLOCK>':
             result.append('</div><!-- /.callout-insight -->')
@@ -172,17 +193,22 @@ def md_to_html(md):
 
         # Quotes block
         if s == '<QUOTES_BLOCK>':
-            result.append('<div class="callout callout-quotes">')
-            result.append('<div class="callout-label">Key Quotes</div>')
+            result.append(f'<div class="callout callout-quotes">')
+            result.append(f'<div class="callout-label">{ICON_QUOTES}Key Quotes</div>')
             continue
         if s == '</QUOTES_BLOCK>':
             result.append('</div><!-- /.callout-quotes -->')
             continue
 
-        # Close analysis card when a new h3/h4 section-heading or another sub-label appears (not Why It Matters)
-        if in_wim and s.startswith('<h3') or (in_wim and s.startswith('<h4') and 'Why It Matters' not in s and '<WIM_START>' not in s):
-            result.append('</div><!-- /.analysis-card -->')
+        # Close analysis card when a new h3/h4 section-heading appears
+        if in_wim and (s.startswith('<h3') or (s.startswith('<h4') and 'Why It Matters' not in s)):
+            result.append('</div><!-- /.callout-analysis -->')
             in_wim = False
+
+        # Close bottom line when a new heading appears
+        if in_bottom and (s.startswith('<h3') or s.startswith('<h4') or s.startswith('<div class="callout')):
+            result.append('</div><!-- /.callout-bottom-line -->')
+            in_bottom = False
 
         if s.startswith('- '):
             if not in_list: result.append('<ul>'); in_list = True
@@ -193,8 +219,9 @@ def md_to_html(md):
             elif s: result.append(s)
 
     if in_list: result.append('</ul>')
-    if in_wim: result.append('</div><!-- /.analysis-card -->')
-    if in_watchlist: result.append('</div><!-- /.callout -->')
+    if in_wim: result.append('</div><!-- /.callout-analysis -->')
+    if in_bottom: result.append('</div><!-- /.callout-bottom-line -->')
+    if in_watchlist: result.append('</div><!-- /.callout-warning -->')
     if in_section: result.append('</div><!-- /.section-block -->')
     return '\n'.join(result)
 
