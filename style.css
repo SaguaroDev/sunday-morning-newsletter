@@ -275,7 +275,7 @@ table { border-collapse: collapse; width: 100%; }
    HERO / TITLE AREA
    ================================ */
 .issue-hero {
-  padding: 48px 0 36px;
+  padding: 48px 0 28px;
   border-bottom: 1px solid var(--color-border-light);
 }
 
@@ -311,7 +311,7 @@ table { border-collapse: collapse; width: 100%; }
 .callout {
   border-radius: var(--radius-lg);
   padding: 22px 24px;
-  margin: 20px 0 8px;
+  margin: 20px 0 16px;
   border: 1px solid var(--color-border-light);
   position: relative;
 }
@@ -355,6 +355,8 @@ table { border-collapse: collapse; width: 100%; }
   border-color: var(--color-accent-border);
   border-left-color: var(--color-accent);
   box-shadow: var(--shadow-sm);
+  margin-top: 8px;
+  margin-bottom: 32px;
 }
 .callout-insight .callout-label {
   color: var(--color-accent);
@@ -442,16 +444,16 @@ blockquote cite {
    BRIEFING SECTIONS
    ================================ */
 .briefing-section {
-  padding: 32px 0;
+  padding: 12px 0 32px;
   border-bottom: 1px solid var(--color-border-light);
 }
 
 .section-heading {
   font-family: var(--font-display);
-  font-size: 20px;
-  font-weight: 500;
+  font-size: 24px;
+  font-weight: 700;
   line-height: 1.3;
-  margin-bottom: 16px;
+  margin-bottom: 18px;
   display: flex;
   align-items: flex-start;
   gap: 12px;
@@ -459,11 +461,11 @@ blockquote cite {
 
 .section-num {
   font-family: var(--font-body);
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 700;
   color: var(--color-accent);
   flex-shrink: 0;
-  margin-top: 2px;
+  margin-top: 3px;
 }
 
 .section-num::after {
